@@ -64,7 +64,10 @@ export default function GuestPartyView({ partyId }: GuestPartyViewProps) {
       }
 
       const data = await response.json().catch(() => null);
-      setActionError(data?.error ?? "Failed to claim item");
+      setActionError(
+        [data?.error, data?.detail].filter(Boolean).join(" — ") ||
+          "Failed to claim item"
+      );
     } finally {
       setBusyItemId(null);
     }
@@ -90,7 +93,10 @@ export default function GuestPartyView({ partyId }: GuestPartyViewProps) {
       }
 
       const data = await response.json().catch(() => null);
-      setActionError(data?.error ?? "Failed to unclaim item");
+      setActionError(
+        [data?.error, data?.detail].filter(Boolean).join(" — ") ||
+          "Failed to unclaim item"
+      );
     } finally {
       setBusyItemId(null);
     }

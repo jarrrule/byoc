@@ -5,6 +5,20 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
+function errorResponse(error: unknown, fallback: string) {
+  console.error(fallback, error);
+
+  const message = error instanceof Error ? error.message : fallback;
+
+  return NextResponse.json(
+    {
+      error: fallback,
+      detail: message,
+    },
+    { status: 500 }
+  );
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
@@ -34,7 +48,6 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json(result.party);
   } catch (error) {
-    console.error("Failed to unclaim item:", error);
-    return NextResponse.json({ error: "Failed to unclaim item" }, { status: 500 });
+    return errorResponse(error, "Failed to unclaim item");
   }
 }

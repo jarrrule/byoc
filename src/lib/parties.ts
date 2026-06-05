@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { parties, partyClaims, partyItems } from "@/db/schema";
 import type { ItemClaim, Party, PartyItem } from "@/types/party";
@@ -157,7 +157,7 @@ export async function claimPartyItem(
 
     await tx
       .update(partyItems)
-      .set({ quantityClaimed: sql`${partyItems.quantityClaimed} + ${quantity}` })
+      .set({ quantityClaimed: item.quantityClaimed + quantity })
       .where(eq(partyItems.id, itemId));
 
     return { ok: true as const };
@@ -203,12 +203,21 @@ export async function unclaimPartyItem(
       return { error: "forbidden" as const };
     }
 
+    const [item] = await tx
+      .select()
+      .from(partyItems)
+      .where(and(eq(partyItems.id, itemId), eq(partyItems.partyId, partyId)));
+
+    if (!item) {
+      return { error: "not_found" as const };
+    }
+
     await tx.delete(partyClaims).where(eq(partyClaims.id, claim.id));
 
     await tx
       .update(partyItems)
       .set({
-        quantityClaimed: sql`GREATEST(0, ${partyItems.quantityClaimed} - ${claim.quantity})`,
+        quantityClaimed: Math.max(0, item.quantityClaimed - claim.quantity),
       })
       .where(eq(partyItems.id, itemId));
 
