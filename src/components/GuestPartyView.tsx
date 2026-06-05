@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { User } from "lucide-react";
 import PartyHeader from "@/components/PartyHeader";
 import ItemRow from "@/components/ItemRow";
-import { getParty, updateParty } from "@/lib/party-storage";
 import type { Party } from "@/types/party";
 
 interface GuestPartyViewProps {
@@ -15,28 +14,47 @@ export default function GuestPartyView({ partyId }: GuestPartyViewProps) {
   const [party, setParty] = useState<Party | null>(null);
   const [guestName, setGuestName] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [claimError, setClaimError] = useState("");
 
-  useEffect(() => {
-    const data = getParty(partyId);
-    setParty(data);
+  const loadParty = useCallback(async () => {
+    const response = await fetch(`/api/parties/${partyId}`);
+    if (response.ok) {
+      setParty(await response.json());
+    } else {
+      setParty(null);
+    }
     setLoaded(true);
   }, [partyId]);
 
-  function handleClaim(itemId: string) {
+  useEffect(() => {
+    loadParty();
+  }, [loadParty]);
+
+  async function handleClaim(itemId: string) {
     const name = guestName.trim();
     if (!name || !party) return;
 
-    const updated: Party = {
-      ...party,
-      items: party.items.map((item) =>
-        item.id === itemId && !item.claimedBy
-          ? { ...item, claimedBy: name }
-          : item
-      ),
-    };
+    setClaimError("");
 
-    setParty(updated);
-    updateParty(updated);
+    const response = await fetch(`/api/parties/${partyId}/claim`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId, guestName: name }),
+    });
+
+    if (response.ok) {
+      setParty(await response.json());
+      return;
+    }
+
+    if (response.status === 409) {
+      setClaimError("Someone else just claimed that item. Refreshing...");
+      await loadParty();
+      return;
+    }
+
+    const data = await response.json().catch(() => null);
+    setClaimError(data?.error ?? "Failed to claim item");
   }
 
   if (!loaded) {
@@ -89,6 +107,12 @@ export default function GuestPartyView({ partyId }: GuestPartyViewProps) {
           </p>
         )}
       </div>
+
+      {claimError && (
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-100">
+          {claimError}
+        </p>
+      )}
 
       <div>
         <div className="mb-3 flex items-center justify-between px-1">

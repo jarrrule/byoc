@@ -3,8 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Link2, MapPin, Plus, Trash2 } from "lucide-react";
-import { saveParty } from "@/lib/party-storage";
-import type { Party, PartyItem } from "@/types/party";
+
+interface DraftItem {
+  id: string;
+  name: string;
+  quantity: string;
+}
 
 export default function HostCreateForm() {
   const router = useRouter();
@@ -13,7 +17,9 @@ export default function HostCreateForm() {
   const [location, setLocation] = useState("");
   const [itemName, setItemName] = useState("");
   const [itemQuantity, setItemQuantity] = useState("");
-  const [items, setItems] = useState<PartyItem[]>([]);
+  const [items, setItems] = useState<DraftItem[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   function handleAddItem() {
     const name = itemName.trim();
@@ -35,23 +41,43 @@ export default function HostCreateForm() {
     setItems((prev) => prev.filter((item) => item.id !== id));
   }
 
-  function handleGenerateLink() {
-    if (!partyName.trim() || items.length === 0) return;
+  async function handleGenerateLink() {
+    if (!partyName.trim() || items.length === 0 || isSubmitting) return;
 
-    const party: Party = {
-      id: crypto.randomUUID(),
-      name: partyName.trim(),
-      date,
-      location: location.trim(),
-      items,
-    };
+    setIsSubmitting(true);
+    setError("");
 
-    console.log("Party data:", party);
-    saveParty(party);
-    router.push(`/party/${party.id}`);
+    try {
+      const response = await fetch("/api/parties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: partyName.trim(),
+          date,
+          location: location.trim(),
+          items: items.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error ?? "Failed to create party");
+      }
+
+      const party = await response.json();
+      console.log("Party data:", party);
+      router.push(`/party/${party.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  const canGenerate = partyName.trim() && items.length > 0;
+  const canGenerate = partyName.trim() && items.length > 0 && !isSubmitting;
 
   return (
     <div className="space-y-6">
@@ -170,6 +196,12 @@ export default function HostCreateForm() {
         )}
       </div>
 
+      {error && (
+        <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">
+          {error}
+        </p>
+      )}
+
       <button
         type="button"
         onClick={handleGenerateLink}
@@ -177,7 +209,7 @@ export default function HostCreateForm() {
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-indigo-200 transition hover:from-indigo-600 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
       >
         <Link2 className="h-5 w-5" />
-        Generate Party Link
+        {isSubmitting ? "Creating..." : "Generate Party Link"}
       </button>
     </div>
   );
