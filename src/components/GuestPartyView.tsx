@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { User } from "lucide-react";
 import PartyHeader from "@/components/PartyHeader";
 import ItemRow from "@/components/ItemRow";
-import type { Party } from "@/types/party";
+import { getGuestName, setGuestName } from "@/lib/guest-session";
+import { isFullyClaimed, type Party } from "@/types/party";
 
 interface GuestPartyViewProps {
   partyId: string;
@@ -12,9 +13,10 @@ interface GuestPartyViewProps {
 
 export default function GuestPartyView({ partyId }: GuestPartyViewProps) {
   const [party, setParty] = useState<Party | null>(null);
-  const [guestName, setGuestName] = useState("");
+  const [guestName, setGuestNameState] = useState("");
   const [loaded, setLoaded] = useState(false);
-  const [claimError, setClaimError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [busyItemId, setBusyItemId] = useState<string | null>(null);
 
   const loadParty = useCallback(async () => {
     const response = await fetch(`/api/parties/${partyId}`);
@@ -27,34 +29,71 @@ export default function GuestPartyView({ partyId }: GuestPartyViewProps) {
   }, [partyId]);
 
   useEffect(() => {
+    setGuestNameState(getGuestName(partyId));
     loadParty();
-  }, [loadParty]);
+  }, [partyId, loadParty]);
 
-  async function handleClaim(itemId: string) {
+  function handleGuestNameChange(name: string) {
+    setGuestNameState(name);
+    setGuestName(partyId, name);
+  }
+
+  async function handleClaim(itemId: string, quantity: number) {
     const name = guestName.trim();
     if (!name || !party) return;
 
-    setClaimError("");
+    setActionError("");
+    setBusyItemId(itemId);
 
-    const response = await fetch(`/api/parties/${partyId}/claim`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId, guestName: name }),
-    });
+    try {
+      const response = await fetch(`/api/parties/${partyId}/claim`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId, guestName: name, quantity }),
+      });
 
-    if (response.ok) {
-      setParty(await response.json());
-      return;
+      if (response.ok) {
+        setParty(await response.json());
+        return;
+      }
+
+      if (response.status === 409) {
+        setActionError("Someone else just claimed the last of that item. Refreshing...");
+        await loadParty();
+        return;
+      }
+
+      const data = await response.json().catch(() => null);
+      setActionError(data?.error ?? "Failed to claim item");
+    } finally {
+      setBusyItemId(null);
     }
+  }
 
-    if (response.status === 409) {
-      setClaimError("Someone else just claimed that item. Refreshing...");
-      await loadParty();
-      return;
+  async function handleUnclaim(itemId: string) {
+    const name = guestName.trim();
+    if (!name || !party) return;
+
+    setActionError("");
+    setBusyItemId(itemId);
+
+    try {
+      const response = await fetch(`/api/parties/${partyId}/unclaim`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId, guestName: name }),
+      });
+
+      if (response.ok) {
+        setParty(await response.json());
+        return;
+      }
+
+      const data = await response.json().catch(() => null);
+      setActionError(data?.error ?? "Failed to unclaim item");
+    } finally {
+      setBusyItemId(null);
     }
-
-    const data = await response.json().catch(() => null);
-    setClaimError(data?.error ?? "Failed to claim item");
   }
 
   if (!loaded) {
@@ -76,7 +115,7 @@ export default function GuestPartyView({ partyId }: GuestPartyViewProps) {
     );
   }
 
-  const claimedCount = party.items.filter((item) => item.claimedBy).length;
+  const fullyClaimedCount = party.items.filter((item) => isFullyClaimed(item)).length;
 
   return (
     <div className="space-y-5">
@@ -96,21 +135,21 @@ export default function GuestPartyView({ partyId }: GuestPartyViewProps) {
             id="guest-name"
             type="text"
             value={guestName}
-            onChange={(e) => setGuestName(e.target.value)}
+            onChange={(e) => handleGuestNameChange(e.target.value)}
             placeholder="Enter your name to claim items"
             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
           />
         </div>
         {!guestName.trim() && (
           <p className="mt-2 text-xs text-slate-500">
-            Required before you can claim an item.
+            Required before you can claim an item. Saved for this session so you can unclaim later.
           </p>
         )}
       </div>
 
-      {claimError && (
+      {actionError && (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-100">
-          {claimError}
+          {actionError}
         </p>
       )}
 
@@ -118,7 +157,7 @@ export default function GuestPartyView({ partyId }: GuestPartyViewProps) {
         <div className="mb-3 flex items-center justify-between px-1">
           <h2 className="text-base font-semibold text-slate-800">What to Bring</h2>
           <span className="text-xs font-medium text-indigo-500">
-            {claimedCount}/{party.items.length} claimed
+            {fullyClaimedCount}/{party.items.length} complete
           </span>
         </div>
 
@@ -129,6 +168,8 @@ export default function GuestPartyView({ partyId }: GuestPartyViewProps) {
               item={item}
               guestName={guestName}
               onClaim={handleClaim}
+              onUnclaim={handleUnclaim}
+              isBusy={busyItemId === item.id}
             />
           ))}
         </ul>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { claimPartyItem } from "@/lib/parties";
+import { unclaimPartyItem } from "@/lib/parties";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -11,8 +11,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     const body = await request.json();
     const itemId = typeof body.itemId === "string" ? body.itemId : "";
     const guestName = typeof body.guestName === "string" ? body.guestName.trim() : "";
-    const quantity =
-      typeof body.quantity === "number" ? Math.floor(body.quantity) : 1;
 
     if (!itemId || !guestName) {
       return NextResponse.json(
@@ -21,29 +19,22 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    if (quantity < 1) {
-      return NextResponse.json(
-        { error: "Quantity must be at least 1" },
-        { status: 400 }
-      );
-    }
-
-    const result = await claimPartyItem(id, itemId, guestName, quantity);
+    const result = await unclaimPartyItem(id, itemId, guestName);
 
     if ("error" in result) {
       if (result.error === "not_found") {
-        return NextResponse.json({ error: "Item not found" }, { status: 404 });
+        return NextResponse.json({ error: "Party not found" }, { status: 404 });
       }
 
       return NextResponse.json(
-        { error: "Not enough quantity remaining" },
-        { status: 409 }
+        { error: "You can only unclaim your own contributions" },
+        { status: 403 }
       );
     }
 
     return NextResponse.json(result.party);
   } catch (error) {
-    console.error("Failed to claim item:", error);
-    return NextResponse.json({ error: "Failed to claim item" }, { status: 500 });
+    console.error("Failed to unclaim item:", error);
+    return NextResponse.json({ error: "Failed to unclaim item" }, { status: 500 });
   }
 }

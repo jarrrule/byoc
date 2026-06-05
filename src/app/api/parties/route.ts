@@ -14,10 +14,25 @@ export async function POST(request: Request) {
     }
 
     const parsedItems = items
-      .map((item: { name?: string; quantity?: string }) => ({
-        name: typeof item.name === "string" ? item.name.trim() : "",
-        quantity: typeof item.quantity === "string" ? item.quantity.trim() : "",
-      }))
+      .map(
+        (item: {
+          name?: string;
+          quantityNeeded?: number;
+          unit?: string;
+          quantity?: string;
+        }) => {
+          const itemName = typeof item.name === "string" ? item.name.trim() : "";
+          const unit = typeof item.unit === "string" ? item.unit.trim() : "";
+          let quantityNeeded =
+            typeof item.quantityNeeded === "number" ? item.quantityNeeded : 1;
+
+          if (!Number.isInteger(quantityNeeded) || quantityNeeded < 1) {
+            quantityNeeded = 1;
+          }
+
+          return { name: itemName, quantityNeeded, unit };
+        }
+      )
       .filter((item: { name: string }) => item.name);
 
     if (parsedItems.length === 0) {

@@ -7,7 +7,8 @@ import { Calendar, Link2, MapPin, Plus, Trash2 } from "lucide-react";
 interface DraftItem {
   id: string;
   name: string;
-  quantity: string;
+  quantityNeeded: number;
+  unit: string;
 }
 
 export default function HostCreateForm() {
@@ -16,7 +17,8 @@ export default function HostCreateForm() {
   const [date, setDate] = useState("");
   const [location, setLocation] = useState("");
   const [itemName, setItemName] = useState("");
-  const [itemQuantity, setItemQuantity] = useState("");
+  const [itemQuantity, setItemQuantity] = useState("1");
+  const [itemUnit, setItemUnit] = useState("");
   const [items, setItems] = useState<DraftItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -25,16 +27,20 @@ export default function HostCreateForm() {
     const name = itemName.trim();
     if (!name) return;
 
+    const quantityNeeded = Math.max(1, parseInt(itemQuantity, 10) || 1);
+
     setItems((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
         name,
-        quantity: itemQuantity.trim(),
+        quantityNeeded,
+        unit: itemUnit.trim(),
       },
     ]);
     setItemName("");
-    setItemQuantity("");
+    setItemQuantity("1");
+    setItemUnit("");
   }
 
   function handleRemoveItem(id: string) {
@@ -57,7 +63,8 @@ export default function HostCreateForm() {
           location: location.trim(),
           items: items.map((item) => ({
             name: item.name,
-            quantity: item.quantity,
+            quantityNeeded: item.quantityNeeded,
+            unit: item.unit,
           })),
         }),
       });
@@ -78,6 +85,11 @@ export default function HostCreateForm() {
   }
 
   const canGenerate = partyName.trim() && items.length > 0 && !isSubmitting;
+
+  function formatDraftQuantity(item: DraftItem): string {
+    if (!item.unit) return `${item.quantityNeeded}`;
+    return `${item.quantityNeeded} ${item.unit}`;
+  }
 
   return (
     <div className="space-y-6">
@@ -137,32 +149,43 @@ export default function HostCreateForm() {
       <div className="rounded-2xl bg-white p-6 shadow-md shadow-indigo-100/80 ring-1 ring-indigo-100">
         <h2 className="mb-5 text-lg font-semibold text-slate-900">Items Needed</h2>
 
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+        <div className="mb-4 flex flex-col gap-3">
           <input
             type="text"
             value={itemName}
             onChange={(e) => setItemName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddItem())}
-            placeholder="Item name (e.g. Tonic Water)"
-            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            placeholder="Item name (e.g. Beer)"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
           />
-          <input
-            type="text"
-            value={itemQuantity}
-            onChange={(e) => setItemQuantity(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddItem())}
-            placeholder="Quantity (e.g. 3 bottles)"
-            className="sm:w-44 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
-          />
-          <button
-            type="button"
-            onClick={handleAddItem}
-            disabled={!itemName.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-50 px-5 py-3 text-sm font-semibold text-indigo-600 ring-1 ring-indigo-200 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Plus className="h-4 w-4" />
-            Add
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              type="number"
+              min={1}
+              value={itemQuantity}
+              onChange={(e) => setItemQuantity(e.target.value)}
+              placeholder="Qty needed"
+              aria-label="Quantity needed"
+              className="sm:w-28 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            />
+            <input
+              type="text"
+              value={itemUnit}
+              onChange={(e) => setItemUnit(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddItem())}
+              placeholder="Unit (e.g. beers, bottles)"
+              className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            />
+            <button
+              type="button"
+              onClick={handleAddItem}
+              disabled={!itemName.trim()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-50 px-5 py-3 text-sm font-semibold text-indigo-600 ring-1 ring-indigo-200 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </button>
+          </div>
         </div>
 
         {items.length > 0 ? (
@@ -174,9 +197,7 @@ export default function HostCreateForm() {
               >
                 <div>
                   <p className="font-medium text-slate-800">{item.name}</p>
-                  {item.quantity && (
-                    <p className="text-sm text-slate-500">{item.quantity}</p>
-                  )}
+                  <p className="text-sm text-slate-500">Need {formatDraftQuantity(item)}</p>
                 </div>
                 <button
                   type="button"
