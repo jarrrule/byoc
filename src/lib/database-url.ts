@@ -1,6 +1,4 @@
-import { defineConfig } from "drizzle-kit";
-
-function getDatabaseUrl(): string {
+export function getDatabaseUrl(): string {
   const url =
     process.env.DATABASE_URL ??
     process.env.POSTGRES_URL ??
@@ -15,12 +13,3 @@ function getDatabaseUrl(): string {
 
   return url;
 }
-
-export default defineConfig({
-  schema: "./src/db/schema.ts",
-  out: "./drizzle",
-  dialect: "postgresql",
-  dbCredentials: {
-    url: getDatabaseUrl(),
-  },
-});
