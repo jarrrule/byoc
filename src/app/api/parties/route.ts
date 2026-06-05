@@ -49,6 +49,23 @@ export async function POST(request: Request) {
     return NextResponse.json(party, { status: 201 });
   } catch (error) {
     console.error("Failed to create party:", error);
-    return NextResponse.json({ error: "Failed to create party" }, { status: 500 });
+
+    const message =
+      error instanceof Error ? error.message : "Failed to create party";
+
+    const isSchemaError =
+      message.includes("column") ||
+      message.includes("relation") ||
+      message.includes("does not exist");
+
+    return NextResponse.json(
+      {
+        error: isSchemaError
+          ? "Database schema is out of date. Redeploy the app to run migrations."
+          : "Failed to create party",
+        detail: process.env.NODE_ENV === "development" ? message : undefined,
+      },
+      { status: 500 }
+    );
   }
 }

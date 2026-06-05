@@ -5,10 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "drizzle-kit push && next build",
+    "vercel-build": "tsx scripts/ensure-schema.ts && next build",
     "start": "next start",
     "lint": "eslint",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:ensure": "tsx scripts/ensure-schema.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -21,6 +22,7 @@
   "devDependencies": {
     "dotenv-cli": "^10.0.0",
     "drizzle-kit": "^0.31.4",
+    "tsx": "^4.20.5",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

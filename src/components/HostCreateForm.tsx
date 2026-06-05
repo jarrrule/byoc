@@ -71,7 +71,10 @@ export default function HostCreateForm() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        throw new Error(data?.error ?? "Failed to create party");
+        throw new Error(
+          [data?.error, data?.detail].filter(Boolean).join(" — ") ||
+            "Failed to create party"
+        );
       }
 
       const party = await response.json();
