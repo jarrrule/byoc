@@ -13,16 +13,20 @@ import {
 interface ItemRowProps {
   item: PartyItem;
   guestName: string;
+  hasGuestName: boolean;
   onClaim: (itemId: string, quantity: number) => void;
   onUnclaim: (itemId: string) => void;
+  onNeedName: () => void;
   isBusy?: boolean;
 }
 
 export default function ItemRow({
   item,
   guestName,
+  hasGuestName,
   onClaim,
   onUnclaim,
+  onNeedName,
   isBusy = false,
 }: ItemRowProps) {
   const remaining = getRemainingQuantity(item);
@@ -121,28 +125,40 @@ export default function ItemRow({
           )}
 
           {!fullyClaimed && (
-            <div className="flex items-center gap-2">
-              <select
-                value={claimAmount}
-                onChange={(e) => setClaimAmount(Number(e.target.value))}
-                disabled={!guestName.trim() || isBusy}
-                aria-label={`How many ${item.name} to claim`}
-                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {Array.from({ length: remaining }, (_, index) => index + 1).map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => onClaim(item.id, claimAmount)}
-                disabled={!guestName.trim() || isBusy || remaining < 1}
-                className="rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition hover:from-indigo-600 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-              >
-                Claim
-              </button>
+            <div className="flex flex-col items-stretch gap-2 sm:items-end">
+              {hasGuestName ? (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={claimAmount}
+                    onChange={(e) => setClaimAmount(Number(e.target.value))}
+                    disabled={isBusy}
+                    aria-label={`How many ${item.name} to claim`}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {Array.from({ length: remaining }, (_, index) => index + 1).map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => onClaim(item.id, claimAmount)}
+                    disabled={isBusy || remaining < 1}
+                    className="rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition hover:from-indigo-600 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                  >
+                    Claim
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onNeedName}
+                  className="rounded-full bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 ring-1 ring-amber-300 transition hover:bg-amber-100"
+                >
+                  Add your name to claim
+                </button>
+              )}
             </div>
           )}
 
