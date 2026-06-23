@@ -1,0 +1,94 @@
+# Deploy a feature branch to a Vercel preview environment on demand.
+#
+# Required GitHub repository secrets:
+#   VERCEL_TOKEN        - https://vercel.com/account/tokens
+#   VERCEL_ORG_ID       - Team ID from Vercel → Project → Settings (or .vercel/project.json)
+#   VERCEL_PROJECT_ID   - Project ID from the same place
+#
+# Usage: GitHub → Actions → Feature Environment Deploy → Run workflow
+
+name: Feature Environment Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to deploy
+        required: true
+        default: main
+        type: string
+      environment:
+        description: Vercel environment
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - production
+
+concurrency:
+  group: feature-deploy-${{ inputs.branch }}-${{ inputs.environment }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.branch }} (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Link Vercel project
+        run: |
+          mkdir -p .vercel
+          echo '{"orgId":"${{ secrets.VERCEL_ORG_ID }}","projectId":"${{ secrets.VERCEL_PROJECT_ID }}"}' > .vercel/project.json
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=${{ inputs.environment }} --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            vercel build --token=${{ secrets.VERCEL_TOKEN }}
+          fi
+
+      - name: Deploy
+        id: deploy
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          else
+            url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Deployment summary
+        run: |
+          {
+            echo "### Feature deploy ready"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Branch** | \`${{ inputs.branch }}\` |"
+            echo "| **Environment** | \`${{ inputs.environment }}\` |"
+            echo "| **URL** | ${{ steps.deploy.outputs.url }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
