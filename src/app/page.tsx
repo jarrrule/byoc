@@ -19,6 +19,9 @@ export default function Home() {
             Create your party list and share a link so guests can claim what
             they&apos;ll bring.
           </p>
+          <p className="mt-4 inline-block rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+            Feature deploy test — feature/test-deploy
+          </p>
         </header>
 
         <HostCreateForm />
