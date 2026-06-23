@@ -1,4 +1,4 @@
-# Deploy a feature branch to a Vercel preview environment on demand.
+# Trigger a Vercel deployment on demand. Vercel builds remotely — nothing is built in CI.
 #
 # Required GitHub repository secrets:
 #   VERCEL_TOKEN        - https://vercel.com/account/tokens
@@ -36,21 +36,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+      environment: ${{ inputs.environment }}
+      branch: ${{ inputs.branch }}
 
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
@@ -60,35 +55,49 @@ jobs:
           mkdir -p .vercel
           echo '{"orgId":"${{ secrets.VERCEL_ORG_ID }}","projectId":"${{ secrets.VERCEL_PROJECT_ID }}"}' > .vercel/project.json
 
-      - name: Pull Vercel environment
-        run: vercel pull --yes --environment=${{ inputs.environment }} --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: Build
-        run: |
-          if [ "${{ inputs.environment }}" = "production" ]; then
-            vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-          else
-            vercel build --token=${{ secrets.VERCEL_TOKEN }}
-          fi
-
-      - name: Deploy
+      - name: Deploy to Vercel
         id: deploy
         run: |
           if [ "${{ inputs.environment }}" = "production" ]; then
-            url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+            url=$(vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }})
           else
-            url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+            url=$(vercel deploy --yes --token=${{ secrets.VERCEL_TOKEN }})
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
-      - name: Deployment summary
+  output-url:
+    name: Output deployment URL
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Print deployment URL
+        env:
+          DEPLOY_URL: ${{ needs.deploy.outputs.url }}
+          DEPLOY_ENV: ${{ needs.deploy.outputs.environment }}
+          DEPLOY_BRANCH: ${{ needs.deploy.outputs.branch }}
         run: |
+          if [ "$DEPLOY_ENV" = "production" ]; then
+            label="Production URL"
+          else
+            label="Preview URL"
+          fi
+
+          echo "$label: $DEPLOY_URL"
+          echo "DEPLOYMENT_URL=$DEPLOY_URL" >> "$GITHUB_ENV"
+
           {
-            echo "### Feature deploy ready"
+            echo "### $label"
+            echo ""
+            echo "**[$DEPLOY_URL]($DEPLOY_URL)**"
             echo ""
             echo "| | |"
             echo "|---|---|"
-            echo "| **Branch** | \`${{ inputs.branch }}\` |"
-            echo "| **Environment** | \`${{ inputs.environment }}\` |"
-            echo "| **URL** | ${{ steps.deploy.outputs.url }} |"
+            echo "| **Branch** | \`$DEPLOY_BRANCH\` |"
+            echo "| **Environment** | \`$DEPLOY_ENV\` |"
+            echo "| **URL** | $DEPLOY_URL |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set job output
+        id: url
+        run: echo "url=${{ needs.deploy.outputs.url }}" >> "$GITHUB_OUTPUT"
